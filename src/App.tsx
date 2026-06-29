@@ -2907,25 +2907,15 @@ ${cleanedBody}
         console.warn("Direct fetch to texlive.net failed (CORS or server error). Using hidden iframe fallback.");
       }
 
-      // 3. Fallback tối thượng: Gửi Form ẩn nhắm tới một Iframe ẩn.
-      // Cách này giúp vượt qua giới hạn CORS của trình duyệt, tự động tải xuống file PDF trực tiếp ngay trên trang hiện tại mà không bị nhảy tab/mở tab mới!
-      console.log("Using hidden iframe form submission fallback.");
-      triggerToast("Đang tải xuống tài liệu PDF...", true);
-
-      // Tạo hoặc lấy Iframe ẩn đã có sẵn
-      let iframe = document.getElementById("pdf-compile-iframe") as HTMLIFrameElement | null;
-      if (!iframe) {
-        iframe = document.createElement("iframe");
-        iframe.id = "pdf-compile-iframe";
-        iframe.name = "pdf-compile-iframe";
-        iframe.style.display = "none";
-        document.body.appendChild(iframe);
-      }
+      // 3. Fallback tối thượng: Gửi Form ẩn nhắm tới một tab mới (_blank).
+      // Cách này giúp vượt qua giới hạn CORS của trình duyệt, hiển thị PDF trên một tab mới để người dùng xem và tải về.
+      console.log("Using form submission fallback to a new tab (_blank).");
+      triggerToast("Đang mở tài liệu PDF trong tab mới...", true);
 
       const form = document.createElement("form");
       form.method = "POST";
       form.action = "https://texlive.net/cgi-bin/latexcgi";
-      form.target = "pdf-compile-iframe"; // Gửi dữ liệu vào iframe ẩn này!
+      form.target = "_blank"; // Gửi dữ liệu vào một tab mới
 
       const formattedLatex = rawText.replace(/\r?\n/g, "\r\n");
       const fields = {
@@ -2953,7 +2943,7 @@ ${cleanedBody}
         }
       }, 1000);
 
-      triggerToast("Yêu cầu biên dịch thành công! Tài liệu PDF đang tự động tải xuống.", true);
+      triggerToast("Yêu cầu biên dịch thành công! Tài liệu PDF sẽ được mở ở tab mới.", true);
       await incrementLatexCount();
 
     } catch (err) {
