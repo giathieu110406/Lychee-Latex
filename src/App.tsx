@@ -2906,34 +2906,25 @@ ${cleanedBody}
       }
 
       if (!apiSuccess) {
-        // Bước 2: Dùng html2pdf.js để kết xuất PDF trực tiếp từ UI (Client-side rendering)
+        // Bước 2: Dùng html2pdf.js để kết xuất PDF trực tiếp từ UI (Client-side rendering) giống như Tải Word
         console.log("[PDF] Môi trường static (GitHub Pages). Dùng html2pdf.js để render PDF tại client...");
-        triggerToast("Server không khả dụng. Đang dùng trình kết xuất nội bộ để tạo PDF (không nhảy tab)...", true);
+        triggerToast("Server không khả dụng. Đang dùng trình kết xuất nội bộ để tạo PDF...", true);
         
         // Dynamic import to keep bundle small
         const html2pdf = (await import("html2pdf.js")).default;
         
-        // Tìm element preview Word (chứa mã HTML đã render)
-        const previewElements = document.querySelectorAll(".preview-content");
-        let targetPreview: HTMLElement | null = null;
-        
-        // Tìm element chứa class dangerouslySetInnerHTML hợp lệ
-        previewElements.forEach((el) => {
-           if (el.innerHTML.includes("<p") || el.innerHTML.includes("<table") || el.innerHTML.includes("katex")) {
-              targetPreview = el as HTMLElement;
-           }
-        });
-        
-        if (!targetPreview && previewElements.length > 0) {
-           targetPreview = previewElements[0] as HTMLElement;
-        }
-
-        if (!targetPreview) {
-          throw new Error("Không tìm thấy nội dung xem trước để tạo PDF nội bộ.");
+        if (!previewRef.current) {
+          throw new Error("Không tìm thấy nội dung để tạo PDF nội bộ.");
         }
         
-        // Clone element để thiết lập styles in ấn mà không ảnh hưởng UI
-        const clone = targetPreview.cloneNode(true) as HTMLElement;
+        // Tạo clone từ previewRef.current y hệt như tải Word
+        const clone = previewRef.current.cloneNode(true) as HTMLDivElement;
+        
+        // Chèn styles và MathML y như tải Word để PDF không bị lỗi font hay công thức toán
+        injectMathML(clone);
+        injectInlineStyles(clone);
+        
+        // Đặt styles hiển thị để html2canvas có thể chụp lại mà không ảnh hưởng giao diện hiện tại
         clone.style.display = "block";
         clone.style.position = "absolute";
         clone.style.left = "-9999px";
@@ -2941,7 +2932,7 @@ ${cleanedBody}
         clone.style.width = "800px";
         clone.style.backgroundColor = "white";
         clone.style.color = "black";
-        clone.style.padding = "40px"; // Lề trang PDF
+        clone.style.padding = "20px 40px"; // Lề trang PDF
         
         document.body.appendChild(clone);
         
@@ -2949,7 +2940,7 @@ ${cleanedBody}
           margin:       10,
           filename:     'tai_lieu_latex.pdf',
           image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+          html2canvas:  { scale: 2, useCORS: true, letterRendering: true, windowWidth: 800 },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
         
