@@ -167,3 +167,29 @@ div.katex-custom-wrapper {
   background-color: #f8fafc;
 }
 
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .preview-content, .preview-content * {
+    visibility: visible;
+  }
+  .preview-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    overflow: visible !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
