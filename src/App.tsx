@@ -2400,7 +2400,8 @@ export default function App() {
 % =========================================================================
 % CẤU HÌNH TIẾNG VIỆT & PHÔNG CHỮ CHUẨN OVERLEAF (pdfLaTeX)
 % =========================================================================
-\\usepackage[utf8]{inputenc}
+\\usepackage[T5]{fontenc}      % BẮT BUỘC: Encode ký tự tiếng Việt cho pdfLaTeX
+\\usepackage[utf8]{inputenc}   % Đọc file nguồn UTF-8
 \\usepackage[vietnamese]{babel} % Đảm bảo hiển thị đúng dấu tiếng Việt
 
 % =========================================================================
@@ -2836,59 +2837,18 @@ ${cleanedBody}
     triggerToast("Đang chuẩn bị biên dịch LaTeX sang PDF...", true);
 
     try {
-      // 1. Thử gọi API local trước (chỉ hoạt động khi có server backend chạy thực tế)
-      let response;
-      let callApiFailed = false;
+      // Bước 1: Thử gọi API local (chỉ hoạt động khi có backend Express server đang chạy)
       try {
-        response = await fetch("/api/compile-latex", {
+        const response = await fetch("/api/compile-latex", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ latexCode: rawText }),
         });
-      } catch (err) {
-        console.warn("fetch /api/compile-latex failed:", err);
-        callApiFailed = true;
-      }
 
-      if (!callApiFailed && response && response.ok) {
-        const pdfBlob = await response.blob();
-        const url = URL.createObjectURL(pdfBlob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "tai_lieu_latex.pdf";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        triggerToast("Đã tải về tài liệu PDF hoàn chỉnh!", true);
-        await incrementLatexCount();
-        return;
-      }
-
-      // 2. Nếu API local không có (như trên GitHub Pages hoàn toàn tĩnh), gọi fetch trực tiếp phía Client tới texlive.net
-      console.log("Local API is not available (common on static GitHub Pages). Trying direct client-side fetch to texlive.net...");
-      triggerToast("Đang biên dịch trực tuyến qua dịch vụ LaTeX...", true);
-      
-      try {
-        const formData = new FormData();
-        const formattedLatex = rawText.replace(/\r?\n/g, "\r\n");
-        formData.append("filecontents[]", formattedLatex);
-        formData.append("filename[]", "document.tex");
-        formData.append("engine", "pdflatex");
-        formData.append("return", "pdf");
-
-        const texliveResponse = await fetch("https://texlive.net/cgi-bin/latexcgi", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (texliveResponse.ok) {
-          const pdfBlob = await texliveResponse.blob();
-          // Kiểm tra xem có đúng định dạng file PDF không
-          if (pdfBlob.type === "application/pdf") {
+        if (response.ok) {
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.toLowerCase().includes("application/pdf")) {
+            const pdfBlob = await response.blob();
             const url = URL.createObjectURL(pdfBlob);
             const link = document.createElement("a");
             link.href = url;
@@ -2897,32 +2857,33 @@ ${cleanedBody}
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-
             triggerToast("Đã tải về tài liệu PDF hoàn chỉnh!", true);
             await incrementLatexCount();
             return;
           }
         }
-      } catch (corsErr) {
-        console.warn("Direct fetch to texlive.net failed (CORS or server error). Using hidden iframe fallback.");
+      } catch {
+        // Network error — server không tồn tại (trường hợp GitHub Pages) — fallthrough
       }
 
-      // 3. Fallback tối thượng: Gửi Form ẩn nhắm tới một tab mới (_blank).
-      // Cách này giúp vượt qua giới hạn CORS của trình duyệt, hiển thị PDF trên một tab mới để người dùng xem và tải về.
-      console.log("Using form submission fallback to a new tab (_blank).");
-      triggerToast("Đang mở tài liệu PDF trong tab mới...", true);
+      // Bước 2: Server không có (GitHub Pages / static hosting)
+      // Dùng form submit đến texlive.net — đây là cách DUY NHẤT hoạt động được
+      // do texlive.net chặn CORS fetch, nhưng cho phép form POST từ trình duyệt.
+      console.log("[PDF] Môi trường static (GitHub Pages). Gửi form đến texlive.net để biên dịch...");
+      triggerToast("Đang gửi yêu cầu biên dịch tới texlive.net...", true);
+
+      const formattedLatex = rawText.replace(/\r?\n/g, "\r\n");
 
       const form = document.createElement("form");
       form.method = "POST";
       form.action = "https://texlive.net/cgi-bin/latexcgi";
-      form.target = "_blank"; // Gửi dữ liệu vào một tab mới
+      form.target = "_blank"; // Mở kết quả ở tab mới để tránh CORS
 
-      const formattedLatex = rawText.replace(/\r?\n/g, "\r\n");
-      const fields = {
+      const fields: Record<string, string> = {
         "filecontents[]": formattedLatex,
         "filename[]": "document.tex",
         "engine": "pdflatex",
-        "return": "pdf"
+        "return": "pdf",
       };
 
       for (const [key, value] of Object.entries(fields)) {
@@ -2935,23 +2896,59 @@ ${cleanedBody}
 
       document.body.appendChild(form);
       form.submit();
-      
-      // Xoá form sau khi gửi
+
       setTimeout(() => {
-        if (form.parentNode) {
-          document.body.removeChild(form);
-        }
+        if (form.parentNode) document.body.removeChild(form);
       }, 1000);
 
-      triggerToast("Yêu cầu biên dịch thành công! Tài liệu PDF sẽ được mở ở tab mới.", true);
+      triggerToast(
+        "PDF đã được mở ở tab mới! Nhấn Ctrl+S (hoặc Cmd+S trên Mac) để lưu về máy.",
+        true
+      );
       await incrementLatexCount();
 
     } catch (err) {
       console.error("PDF Compilation failed:", err);
-      triggerToast("Biên dịch PDF gặp sự cố. Vui lòng kiểm tra lại mã nguồn LaTeX hoặc thử lại sau!", false);
+      triggerToast(
+        "Biên dịch PDF gặp sự cố. Vui lòng thử dùng nút 'Mở trên Overleaf' để nhận PDF chất lượng cao!",
+        false
+      );
     } finally {
       setIsCompilingPdf(false);
     }
+  };
+
+  // Mở LaTeX code trực tiếp trên Overleaf để compile PDF chất lượng cao
+  const openInOverleaf = () => {
+    const rawText = overleafCode.trim();
+    if (!rawText) {
+      triggerToast("Chưa có nội dung LaTeX để mở trên Overleaf!", false);
+      return;
+    }
+
+    // Overleaf hỗ trợ import qua form POST — không cần đăng nhập để compile
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "https://www.overleaf.com/docs";
+    form.target = "_blank";
+
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "snip";
+    input.value = rawText;
+    form.appendChild(input);
+
+    const engineInput = document.createElement("input");
+    engineInput.type = "hidden";
+    engineInput.name = "snip_type";
+    engineInput.value = "main.tex";
+    form.appendChild(engineInput);
+
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(() => { if (form.parentNode) document.body.removeChild(form); }, 1000);
+
+    triggerToast("Đang mở trên Overleaf... Nhấn 'Recompile' để tạo PDF!", true);
   };
 
   const injectInlineStyles = (root: HTMLDivElement) => {
@@ -4581,6 +4578,7 @@ ${cleanedBody}
                               className={`bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 ${
                                 isCompilingPdf ? "opacity-75 cursor-not-allowed" : ""
                               }`}
+                              title="Biên dịch LaTeX sang PDF qua texlive.net (mở ở tab mới)"
                             >
                               {isCompilingPdf && (
                                 <svg className="animate-spin h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
@@ -4589,6 +4587,19 @@ ${cleanedBody}
                                 </svg>
                               )}
                               <span>{isCompilingPdf ? "Đang biên dịch..." : "Tải file PDF"}</span>
+                            </button>
+
+                            {/* NÚT MỚI: Overleaf */}
+                            <button
+                              onClick={openInOverleaf}
+                              disabled={!overleafCode}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="Mở trên Overleaf để compile và tải PDF chất lượng cao"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.9 1C6.01 1 1.2 5.81 1.2 11.7s4.81 10.7 10.7 10.7 10.7-4.81 10.7-10.7S17.79 1 11.9 1zm1.56 15.63c-.51.51-1.19.78-1.95.78-.76 0-1.44-.27-1.95-.78-.51-.51-.78-1.19-.78-1.95V8.32c0-.31.25-.56.56-.56h.83c.31 0 .56.25.56.56v6.36c0 .33.13.63.35.85.22.22.52.35.85.35s.63-.13.85-.35c.22-.22.35-.52.35-.85V8.32c0-.31.25-.56.56-.56h.83c.31 0 .56.25.56.56v7.36c0 .76-.27 1.44-.78 1.95z"/>
+                              </svg>
+                              <span>Overleaf</span>
                             </button>
                           </>
                         )}
@@ -4666,14 +4677,33 @@ ${cleanedBody}
                           </div>
 
                           <div className="w-full flex flex-col gap-2">
+                            {/* Nút Overleaf — giải pháp đáng tin cậy nhất trên GitHub Pages */}
+                            <button
+                              onClick={openInOverleaf}
+                              disabled={!overleafCode}
+                              className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-all shadow-md cursor-pointer ${
+                                overleafCode
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20 active:scale-[0.98]"
+                                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                              }`}
+                              title="Mở trên Overleaf — compile PDF chất lượng cao, hỗ trợ đầy đủ tiếng Việt"
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.9 1C6.01 1 1.2 5.81 1.2 11.7s4.81 10.7 10.7 10.7 10.7-4.81 10.7-10.7S17.79 1 11.9 1zm1.56 15.63c-.51.51-1.19.78-1.95.78-.76 0-1.44-.27-1.95-.78-.51-.51-.78-1.19-.78-1.95V8.32c0-.31.25-.56.56-.56h.83c.31 0 .56.25.56.56v6.36c0 .33.13.63.35.85.22.22.52.35.85.35s.63-.13.85-.35c.22-.22.35-.52.35-.85V8.32c0-.31.25-.56.56-.56h.83c.31 0 .56.25.56.56v7.36c0 .76-.27 1.44-.78 1.95z"/>
+                              </svg>
+                              <span>Mở trên Overleaf (PDF chất lượng cao)</span>
+                            </button>
+
+                            {/* Nút tải PDF qua texlive.net (mở tab mới) */}
                             <button
                               onClick={downloadAsLatex}
                               disabled={!overleafCode || isCompilingPdf}
                               className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-all shadow-md cursor-pointer ${
-                                overleafCode 
-                                  ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/10 hover:shadow-rose-500/20 active:scale-[0.98]" 
+                                overleafCode
+                                  ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/10 hover:shadow-rose-500/20 active:scale-[0.98]"
                                   : "bg-slate-100 text-slate-400 cursor-not-allowed"
                               } ${isCompilingPdf ? "opacity-75 cursor-wait" : ""}`}
+                              title="Biên dịch qua texlive.net — PDF mở ở tab mới, nhấn Ctrl+S để lưu"
                             >
                               {isCompilingPdf ? (
                                 <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -4681,25 +4711,31 @@ ${cleanedBody}
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
                               ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                                 </svg>
                               )}
-                              <span>{isCompilingPdf ? "Đang biên dịch PDF..." : "Tải file PDF (.pdf)"}</span>
+                              <span>{isCompilingPdf ? "Đang biên dịch PDF..." : "Tải PDF qua texlive.net (tab mới)"}</span>
                             </button>
 
                             <button
                               onClick={copyRawLaTeX}
                               disabled={!overleafCode || isCompilingPdf}
                               className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl font-bold text-[11px] md:text-xs transition-all border cursor-pointer ${
-                                overleafCode 
-                                  ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]" 
+                                overleafCode
+                                  ? "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]"
                                   : "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
                               }`}
                             >
                               <span>Sao chép mã nguồn LaTeX</span>
                             </button>
                           </div>
+
+                          {/* Ghi chú hướng dẫn — THÊM MỚI */}
+                          <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                            💡 <strong>Overleaf</strong>: PDF chất lượng cao, hỗ trợ tiếng Việt đầy đủ.<br/>
+                            Sau khi mở, nhấn <kbd className="bg-slate-100 px-1 rounded text-slate-600">Recompile</kbd> để tạo PDF.
+                          </p>
                         </div>
                       </div>
                     </div>
