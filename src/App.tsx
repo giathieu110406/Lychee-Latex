@@ -670,20 +670,9 @@ export default function App() {
   const previewRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Prevent selection on Word preview container through standard selectstart DOM event
+  // Note: Selection prevention on Word preview container was removed to allow users to highlight text.
   useEffect(() => {
-    const handleSelectStart = (e: Event) => {
-      e.preventDefault();
-    };
-    const el = previewRef.current;
-    if (el) {
-      el.addEventListener("selectstart", handleSelectStart);
-    }
-    return () => {
-      if (el) {
-        el.removeEventListener("selectstart", handleSelectStart);
-      }
-    };
+    // Legacy behavior removed
   }, [processedHtml, activeTab]);
 
   // --- STATE FOR DOCUMENT BUILDER (v3.4) ---
@@ -3673,6 +3662,46 @@ ${bodyHtml}
     await incrementLatexCount();
   };
 
+  const handleFixLogic = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const isSelected = start !== end;
+    
+    const textToProcess = isSelected ? inputText.substring(start, end) : inputText;
+
+    let fixedText = textToProcess;
+    
+    // Fix common Markdown list bugs: "* *item**" -> "**item**"
+    // Matches anywhere: space or start of line, "* *", then anything, then "**"
+    fixedText = fixedText.replace(/(^|\s)\*\s+\*(.*?)\*\*/g, '$1**$2**');
+    
+    // Also fix cases where a list item has a space inside its bold marker: "* ** Tên**" -> "* **Tên**"
+    fixedText = fixedText.replace(/\*\s+\*\*/g, '***');
+    fixedText = fixedText.replace(/\*\*\s+\*/g, '***');
+    
+    // Fix broken heading tags
+    fixedText = fixedText.replace(/^#\s+#/gm, '##');
+    
+    // Fix broken bold tags anywhere if they are strictly wrapped like * *text* *
+    fixedText = fixedText.replace(/\*\s+\*(.*?)\*\s+\*/g, '**$1**');
+
+    if (isSelected) {
+      const newText = inputText.substring(0, start) + fixedText + inputText.substring(end);
+      setInputText(newText);
+      setTimeout(() => {
+        textarea.setSelectionRange(start, start + fixedText.length);
+        textarea.focus();
+      }, 0);
+      triggerToast("Đã sửa lỗi logic Markdown cho vùng được chọn!", true);
+    } else {
+      setInputText(fixedText);
+      triggerToast("Đã tự động sửa các lỗi khoảng trắng trong Markdown!", true);
+    }
+  };
+
   const handleClear = () => {
     setInputText("");
     triggerToast("Đã xóa trắng trình soạn thảo.");
@@ -4511,12 +4540,20 @@ ${bodyHtml}
                       <span className="text-xs md:text-sm font-bold text-slate-700">
                         1. Nhập hoặc dán văn bản từ AI
                       </span>
-                      <button
-                        onClick={handleClear}
-                        className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center px-2 py-1 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      >
-                        Xóa tất cả
-                      </button>
+                      <div className="flex gap-1 md:gap-2">
+                        <button
+                          onClick={handleFixLogic}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center px-2 py-1 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Sửa lỗi Logic
+                        </button>
+                        <button
+                          onClick={handleClear}
+                          className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center px-2 py-1 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Xóa tất cả
+                        </button>
+                      </div>
                     </div>
 
                     {hasUnclosedDollar(inputText) && (
@@ -4641,27 +4678,16 @@ ${bodyHtml}
                         ref={previewRef}
                         style={{
                           fontFamily: wordFont,
-                          WebkitUserSelect: "none",
-                          MozUserSelect: "none",
-                          msUserSelect: "none",
-                          userSelect: "none",
                         }}
                         onCopy={(e) => {
                           e.preventDefault();
-                          triggerToast(
-                            "Vui lòng nhấn nút 'Sao chép cho Word' ở trên để sao chép chuẩn cấu trúc toán Equation!",
-                            false,
-                          );
                         }}
                         onCut={(e) => {
                           e.preventDefault();
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          triggerToast(
-                            "Tính năng sao chép chuột phải bị chặn. Vui lòng bấm nút 'Sao chép cho Word'!",
-                            false,
-                          );
+                          // Âm thầm chặn menu chuột phải, không hiện toast
                         }}
                         onKeyDown={(e) => {
                           if (
@@ -4672,10 +4698,6 @@ ${bodyHtml}
                               e.key === "X")
                           ) {
                             e.preventDefault();
-                            triggerToast(
-                              "Vui lòng nhấp nút 'Sao chép cho Word'!",
-                              false,
-                            );
                           }
                         }}
                         onDragStart={(e) => {
