@@ -374,7 +374,7 @@ function parseMultipleChoice(text: string): ParsedQuestion {
   const questionLines: string[] = [];
   const options: { label: string; text: string }[] = [];
 
-  const optionRegex = /^\s*([A-D])[\.\)\/\s-]\s*(.*)$/i;
+  const optionRegex = /^\s*([A-D])[\.\)\/]\s*(.*)$/;
   // Các dòng bắt đầu bằng đánh số danh sách, bullet, ký hiệu đặc biệt hoặc từ khóa đề mục
   const nonOptionContinuationRegex =
     /^\s*(?:\d+[\.\)\/\s-]|[\-\*•]|\b(?:Bài|Yêu cầu|Biết rằng|Ghi chú|Lưu ý|Chú ý|Đề số|Mã số|Thời gian)\b)/i;
@@ -416,6 +416,10 @@ function parseMultipleChoice(text: string): ParsedQuestion {
     }
   }
 
+  if (currentOption) {
+    options.push(currentOption);
+  }
+
   let questionBody = questionLines.join("\n").trim();
   if (postQuestionLines.length > 0) {
     questionBody += "\n\n" + postQuestionLines.join("\n").trim();
@@ -430,9 +434,9 @@ function parseMultipleChoice(text: string): ParsedQuestion {
 
   // If we couldn't parse 2 distinct options from separate lines, try inline parsing (e.g., A. $1$ B. $2$ C. $3$ D. $4$)
   const inlineRegex =
-    /([A-D])[\.\)\/\s]\s*([\s\S]*?)(?=\s*[A-D][\.\)\/\s]|$)/gi;
+    /([A-D])[\.\)\/]\s*([\s\S]*?)(?=\s*[A-D][\.\)\/]|(?:\s*$))/g;
   const plainText = text;
-  const firstOptionIdx = plainText.search(/\b[A-D][\.\)\/\s]/i);
+  const firstOptionIdx = plainText.search(/\b[A-D][\.\)\/]/);
 
   if (firstOptionIdx !== -1) {
     const questionBodyInline = plainText.substring(0, firstOptionIdx).trim();
@@ -494,14 +498,7 @@ export default function App() {
     }
   });
 
-  useEffect(() => {
-    console.log("🔍 Admin Debug:", {
-      email: user?.email,
-      isOwner: checkIsOwnerEmail(user),
-      userDocRole: userDoc?.role,
-      isAdmin: isAdminUser(user, userDoc),
-    });
-  }, [user, userDoc]);
+
   const [authLoading, setAuthLoading] = useState<boolean>(() => {
     try {
       const cachedUser = localStorage.getItem("q_builder_cached_user");
@@ -694,13 +691,19 @@ export default function App() {
     },
   ]);
   const [newQuestionType, setNewQuestionType] = useState<
-    "trac_nghiem" | "tu_luan"
+    "trac_nghiem" | "trac_nghiem_dung_sai" | "trac_nghiem_tra_loi_ngan" | "tu_luan"
   >("trac_nghiem");
   const [tracNghiemText, setTracNghiemText] = useState<string>("");
   const [tracNghiemAnswerText, setTracNghiemAnswerText] = useState<string>("");
   const [newTracNghiemColumns, setNewTracNghiemColumns] = useState<number>(4);
+  const [dungSaiText, setDungSaiText] = useState<string>("");
+  const [dungSaiAnswerText, setDungSaiAnswerText] = useState<string>("");
+  const [traLoiNganText, setTraLoiNganText] = useState<string>("");
+  const [traLoiNganAnswerText, setTraLoiNganAnswerText] = useState<string>("");
   const [tuLuanQuestionText, setTuLuanQuestionText] = useState<string>("");
   const [tuLuanAnswerText, setTuLuanAnswerText] = useState<string>("");
+  const [showSmartPasteModal, setShowSmartPasteModal] = useState<boolean>(false);
+  const [smartPasteText, setSmartPasteText] = useState<string>("");
   const [docTitle, setDocTitle] = useState<string>(
     "ĐỀ KIỂM TRA ĐỊNH KỲ MÔN TOÁN SỐ HỌC & GIẢI TÍCH",
   );
@@ -731,10 +734,25 @@ export default function App() {
   );
 
   const tracNghiemList = docQuestions.filter((q) => q.type === "trac_nghiem");
+  const dungSaiList = docQuestions.filter((q) => q.type === "trac_nghiem_dung_sai");
+  const traLoiNganList = docQuestions.filter((q) => q.type === "trac_nghiem_tra_loi_ngan");
   const tuLuanList = docQuestions.filter((q) => q.type === "tu_luan");
-  const hasTracNghiem = tracNghiemList.length > 0;
-  const labelTracNghiem = "I. PHẦN TRẮC NGHIỆM";
-  const labelTuLuan = hasTracNghiem ? "II. PHẦN TỰ LUẬN" : "I. PHẦN TỰ LUẬN";
+  
+  let sectionIndex = 1;
+  const toRoman = (num: number) => {
+    switch(num) {
+        case 1: return "I";
+        case 2: return "II";
+        case 3: return "III";
+        case 4: return "IV";
+        default: return "";
+    }
+  }
+
+  const labelTracNghiem = tracNghiemList.length > 0 ? `${toRoman(sectionIndex++)}. PHẦN TRẮC NGHIỆM NHIỀU LỰA CHỌN` : "";
+  const labelDungSai = dungSaiList.length > 0 ? `${toRoman(sectionIndex++)}. PHẦN TRẮC NGHIỆM ĐÚNG/SAI` : "";
+  const labelTraLoiNgan = traLoiNganList.length > 0 ? `${toRoman(sectionIndex++)}. PHẦN TRẮC NGHIỆM TRẢ LỜI NGẮN` : "";
+  const labelTuLuan = tuLuanList.length > 0 ? `${toRoman(sectionIndex++)}. PHẦN TỰ LUẬN` : "";
 
   const handleUpdateQuestionColumns = (id: string, columns: number) => {
     setDocQuestions((prev) =>
@@ -749,13 +767,24 @@ export default function App() {
     // Auto strip the "Câu X." pattern for clean insertion into textarea
     const cleanText = getCleanQuestionBody(q.questionText);
 
-    if (q.type === "trac_nghiem") {
-      setTracNghiemText(cleanText);
-      setNewTracNghiemColumns(q.columns || 4);
-      setTracNghiemAnswerText(q.answerText || "");
-    } else {
-      setTuLuanQuestionText(cleanText);
-      setTuLuanAnswerText(q.answerText || "");
+    switch (q.type) {
+      case "trac_nghiem":
+        setTracNghiemText(cleanText);
+        setNewTracNghiemColumns(q.columns || 4);
+        setTracNghiemAnswerText(q.answerText || "");
+        break;
+      case "trac_nghiem_dung_sai":
+        setDungSaiText(cleanText);
+        setDungSaiAnswerText(q.answerText || "");
+        break;
+      case "trac_nghiem_tra_loi_ngan":
+        setTraLoiNganText(cleanText);
+        setTraLoiNganAnswerText(q.answerText || "");
+        break;
+      case "tu_luan":
+        setTuLuanQuestionText(cleanText);
+        setTuLuanAnswerText(q.answerText || "");
+        break;
     }
 
     // Smooth scroll to input section for immediate focus
@@ -767,158 +796,91 @@ export default function App() {
   };
 
   const handleAddQuestion = () => {
-    if (newQuestionType === "trac_nghiem") {
-      if (!tracNghiemText.trim()) {
-        triggerToast(
-          "Nội dung câu hỏi trắc nghiệm không được để trống!",
-          false,
-        );
-        return;
-      }
-      if (editingQuestionId) {
-        // Update mode
-        const idx = docQuestions.findIndex((q) => q.id === editingQuestionId);
-        if (idx !== -1) {
-          setDocQuestions((prev) => {
-            const next = [...prev];
-            next[idx] = {
-              ...next[idx],
-              type: "trac_nghiem",
-              questionText: tracNghiemText.trim(),
-              columns: newTracNghiemColumns,
-              answerText: tracNghiemAnswerText.trim(),
-            };
-            let tnCount = 0;
-            let tlCount = 0;
-            return next.map((q) => {
-              const cleanContent = getCleanQuestionBody(q.questionText);
-              if (q.type === "trac_nghiem") {
-                tnCount++;
-                return {
-                  ...q,
-                  questionText: `Câu ${tnCount}. ` + cleanContent,
-                };
-              } else {
-                tlCount++;
-                return {
-                  ...q,
-                  questionText: `Câu ${tlCount}. ` + cleanContent,
-                };
-              }
-            });
-          });
-          setTracNghiemText("");
-          setTracNghiemAnswerText("");
-          setEditingQuestionId(null);
-          triggerToast("Đã cập nhật câu trắc nghiệm thành công!", true);
-        } else {
-          triggerToast("Không tìm thấy câu hỏi để cập nhật!", false);
-        }
-      } else {
-        // Add mode
-        const newId = "q_" + Date.now();
+    let typeToUse = newQuestionType;
+    let questionText = "";
+    let answerText = "";
+    let columns = newTracNghiemColumns;
+
+    switch (typeToUse) {
+      case "trac_nghiem":
+        questionText = tracNghiemText.trim();
+        answerText = tracNghiemAnswerText.trim();
+        break;
+      case "trac_nghiem_dung_sai":
+        questionText = dungSaiText.trim();
+        answerText = dungSaiAnswerText.trim();
+        break;
+      case "trac_nghiem_tra_loi_ngan":
+        questionText = traLoiNganText.trim();
+        answerText = traLoiNganAnswerText.trim();
+        break;
+      case "tu_luan":
+        questionText = tuLuanQuestionText.trim();
+        answerText = tuLuanAnswerText.trim();
+        break;
+    }
+
+    if (!questionText) {
+      triggerToast("Nội dung câu hỏi không được để trống!", false);
+      return;
+    }
+
+    if (editingQuestionId) {
+      const idx = docQuestions.findIndex((q) => q.id === editingQuestionId);
+      if (idx !== -1) {
         setDocQuestions((prev) => {
-          const updated = [
-            ...prev,
-            {
-              id: newId,
-              type: "trac_nghiem",
-              questionText: tracNghiemText.trim(),
-              columns: newTracNghiemColumns,
-              answerText: tracNghiemAnswerText.trim(),
-            },
-          ];
-          let tnCount = 0;
-          let tlCount = 0;
-          return updated.map((q) => {
-            const cleanContent = getCleanQuestionBody(q.questionText);
-            if (q.type === "trac_nghiem") {
-              tnCount++;
-              return { ...q, questionText: `Câu ${tnCount}. ` + cleanContent };
-            } else {
-              tlCount++;
-              return { ...q, questionText: `Câu ${tlCount}. ` + cleanContent };
-            }
-          });
+          const next = [...prev];
+          next[idx] = {
+            ...next[idx],
+            type: typeToUse,
+            questionText: questionText,
+            answerText: answerText,
+            columns: typeToUse === "trac_nghiem" ? columns : undefined,
+          };
+          return renumberQuestions(next);
         });
+        setEditingQuestionId(null);
+        triggerToast("Đã cập nhật câu hỏi thành công!", true);
+      } else {
+        triggerToast("Không tìm thấy câu hỏi để cập nhật!", false);
+      }
+    } else {
+      const newId = "q_" + Date.now();
+      setDocQuestions((prev) => {
+        const next = [
+          ...prev,
+          {
+            id: newId,
+            type: typeToUse,
+            questionText: questionText,
+            answerText: answerText,
+            columns: typeToUse === "trac_nghiem" ? columns : undefined,
+          },
+        ];
+        return renumberQuestions(next);
+      });
+      triggerToast("Đã thêm câu hỏi thành công!", true);
+    }
+
+    // Clear inputs
+    switch (typeToUse) {
+      case "trac_nghiem":
         setTracNghiemText("");
         setTracNghiemAnswerText("");
         setNewTracNghiemColumns(4);
-        triggerToast("Đã thêm câu trắc nghiệm thành công!", true);
-      }
-    } else {
-      if (!tuLuanQuestionText.trim()) {
-        triggerToast("Nội dung câu hỏi tự luận không được để trống!", false);
-        return;
-      }
-      if (editingQuestionId) {
-        // Update mode
-        const idx = docQuestions.findIndex((q) => q.id === editingQuestionId);
-        if (idx !== -1) {
-          setDocQuestions((prev) => {
-            const next = [...prev];
-            next[idx] = {
-              ...next[idx],
-              type: "tu_luan",
-              questionText: tuLuanQuestionText.trim(),
-              answerText: tuLuanAnswerText.trim(),
-            };
-            let tnCount = 0;
-            let tlCount = 0;
-            return next.map((q) => {
-              const cleanContent = getCleanQuestionBody(q.questionText);
-              if (q.type === "trac_nghiem") {
-                tnCount++;
-                return {
-                  ...q,
-                  questionText: `Câu ${tnCount}. ` + cleanContent,
-                };
-              } else {
-                tlCount++;
-                return {
-                  ...q,
-                  questionText: `Câu ${tlCount}. ` + cleanContent,
-                };
-              }
-            });
-          });
-          setTuLuanQuestionText("");
-          setTuLuanAnswerText("");
-          setEditingQuestionId(null);
-          triggerToast("Đã cập nhật câu tự luận thành công!", true);
-        } else {
-          triggerToast("Không tìm thấy câu hỏi để cập nhật!", false);
-        }
-      } else {
-        // Add mode
-        const newId = "q_" + Date.now();
-        setDocQuestions((prev) => {
-          const updated = [
-            ...prev,
-            {
-              id: newId,
-              type: "tu_luan",
-              questionText: tuLuanQuestionText.trim(),
-              answerText: tuLuanAnswerText.trim(),
-            },
-          ];
-          let tnCount = 0;
-          let tlCount = 0;
-          return updated.map((q) => {
-            const cleanContent = getCleanQuestionBody(q.questionText);
-            if (q.type === "trac_nghiem") {
-              tnCount++;
-              return { ...q, questionText: `Câu ${tnCount}. ` + cleanContent };
-            } else {
-              tlCount++;
-              return { ...q, questionText: `Câu ${tlCount}. ` + cleanContent };
-            }
-          });
-        });
+        break;
+      case "trac_nghiem_dung_sai":
+        setDungSaiText("");
+        setDungSaiAnswerText("");
+        break;
+      case "trac_nghiem_tra_loi_ngan":
+        setTraLoiNganText("");
+        setTraLoiNganAnswerText("");
+        break;
+      case "tu_luan":
         setTuLuanQuestionText("");
         setTuLuanAnswerText("");
-        triggerToast("Đã thêm câu tự luận thành công!", true);
-      }
+        break;
     }
   };
 
@@ -981,26 +943,147 @@ export default function App() {
       setEditingQuestionId(null);
       setTracNghiemText("");
       setTracNghiemAnswerText("");
+      setDungSaiText("");
+      setDungSaiAnswerText("");
+      setTraLoiNganText("");
+      setTraLoiNganAnswerText("");
       setTuLuanQuestionText("");
       setTuLuanAnswerText("");
     }
     triggerToast("Đã xóa câu hỏi.");
   };
 
-  const handleClearDocQuestions = () => {
-    if (
-      window.confirm(
-        "Bạn có chắc chắn muốn xóa tất cả câu hỏi trong tài liệu hiện tại không?",
-      )
-    ) {
-      setDocQuestions([]);
-      setEditingQuestionId(null);
-      setTracNghiemText("");
-      setTracNghiemAnswerText("");
-      setTuLuanQuestionText("");
-      setTuLuanAnswerText("");
-      triggerToast("Đã xóa trắng tài liệu.");
+  const processMultipleQuestionsText = (text: string) => {
+    // Fix logic bugs in markdown
+    const fixMarkdown = (t: string) => {
+      let result = t.replace(/(^|\s)\*\s+\*(.*?)\*\*/g, '$1**$2**');
+      result = result.replace(/\*\s+\*\*/g, '***');
+      result = result.replace(/\*\*\s+\*/g, '***');
+      result = result.replace(/^#\s+#/gm, '##');
+      result = result.replace(/\*\s+\*(.*?)\*\s+\*/g, '**$1**');
+      return result;
+    };
+
+    const fixedText = fixMarkdown(text);
+    const lines = fixedText.split('\n');
+    
+    let blocks: {text: string, typeContext: "trac_nghiem" | "trac_nghiem_dung_sai" | "trac_nghiem_tra_loi_ngan" | "tu_luan"}[] = [];
+    let currentBlock = "";
+    let currentTypeContext = newQuestionType;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineTrimmed = line.trim();
+        const lowerLine = lineTrimmed.toLowerCase();
+        
+        const isNewQuestion = /^(?:Câu|Bài)\s*(?:hỏi)?\s*(?:\d+)?\s*(?:[:.\-|\*]|$)/i.test(lineTrimmed);
+        const isNewSection = /^Phần\s+\d+/i.test(lineTrimmed);
+
+        if (isNewQuestion || isNewSection) {
+            if (currentBlock.trim()) blocks.push({ text: currentBlock, typeContext: currentTypeContext });
+            
+            if (isNewSection) {
+                currentBlock = "";
+            } else {
+                currentBlock = line + '\n';
+            }
+        } else {
+            currentBlock += line + '\n';
+        }
+
+        if (lowerLine.includes("nhiều lựa chọn") || lowerLine.includes("4 lựa chọn") || lowerLine.includes("chọn một phương án") || lowerLine.includes("phương án đúng") || lowerLine.includes("một đáp án")) {
+            currentTypeContext = "trac_nghiem";
+        } else if (lowerLine.includes("đúng/sai") || lowerLine.includes("đúng sai") || lowerLine.includes("đúng hay sai")) {
+            currentTypeContext = "trac_nghiem_dung_sai";
+        } else if (lowerLine.includes("trả lời ngắn")) {
+            currentTypeContext = "trac_nghiem_tra_loi_ngan";
+        } else if (lowerLine.includes("tự luận")) {
+            currentTypeContext = "tu_luan";
+        }
     }
+    if (currentBlock.trim()) blocks.push({ text: currentBlock, typeContext: currentTypeContext });
+    
+    blocks = blocks.filter(b => /^(?:Câu|Bài)/i.test(b.text.trim()));
+    
+    if (blocks.length === 0) {
+        blocks.push({ text: fixedText, typeContext: currentTypeContext });
+    }
+    
+    const parsedQuestions = blocks.map(blockObj => {
+        const block = blockObj.text;
+        let qLines: string[] = [];
+        let aLines: string[] = [];
+        let isAnswer = false;
+        
+        const blockLines = block.split('\n');
+        for (let i = 0; i < blockLines.length; i++) {
+            const lower = blockLines[i].toLowerCase().trim();
+            const plain = lower.replace(/\*/g, '').trim();
+            
+            if (
+                plain.startsWith('đáp án:') || 
+                plain.startsWith('đáp án') || 
+                plain.startsWith('hướng dẫn giải') || 
+                plain.startsWith('lời giải') || 
+                plain.startsWith('giải thích') ||
+                plain.match(/^--+$/)
+            ) {
+                isAnswer = true;
+            }
+            
+            if (isAnswer) {
+                aLines.push(blockLines[i]);
+            } else {
+                qLines.push(blockLines[i]);
+            }
+        }
+        
+        return {
+           type: blockObj.typeContext,
+           q: qLines.join('\n').trim(),
+           a: aLines.join('\n').trim()
+        };
+    });
+    
+    if (parsedQuestions.length > 0) {
+        setDocQuestions((prev) => {
+          const updated = [...prev];
+          
+          parsedQuestions.forEach(item => {
+              updated.push({
+                  id: "q_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
+                  type: item.type,
+                  questionText: item.q,
+                  columns: item.type === "trac_nghiem" ? newTracNghiemColumns : undefined,
+                  answerText: item.a,
+              });
+          });
+          
+          // Re-number them properly
+          return renumberQuestions(updated);
+        });
+        
+        triggerToast(`Đã tự động phân tách và thêm ${parsedQuestions.length} câu hỏi vào đề thi!`, true);
+    }
+  };
+
+  const handleSmartPasteProcess = () => {
+    if (!smartPasteText.trim()) {
+      triggerToast("Nội dung dán không được để trống!", false);
+      return;
+    }
+    const currentPromptCount = userDoc?.promptCount || 0;
+    if (!isApproved && currentPromptCount >= 8) {
+      triggerToast(
+        "Bạn đã đạt giới hạn 8 lần sử dụng tính năng dán thông minh (AI) mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+        false,
+      );
+      return;
+    }
+    processMultipleQuestionsText(smartPasteText);
+    incrementPromptCount();
+    setShowSmartPasteModal(false);
+    setSmartPasteText("");
   };
 
   const copyDocToWord = async () => {
@@ -1235,7 +1318,21 @@ export default function App() {
 
   const getCleanQuestionBody = (text: string): string => {
     if (!text) return "";
-    return text.replace(/^\s*Câu\s*\d+[\.\:\s-]*/i, "").trim();
+    return text.replace(/^\s*(?:Câu|Bài)\s*(?:hỏi)?\s*(?:\d+)?\s*[:.\-|\*]*/i, "").trim();
+  };
+
+  const renumberQuestions = (questions: any[]) => {
+    let counts: Record<string, number> = {
+      trac_nghiem: 0,
+      trac_nghiem_dung_sai: 0,
+      trac_nghiem_tra_loi_ngan: 0,
+      tu_luan: 0
+    };
+    return questions.map((q) => {
+      const cleanContent = getCleanQuestionBody(q.questionText);
+      counts[q.type] = (counts[q.type] || 0) + 1;
+      return { ...q, questionText: `Câu ${counts[q.type]}. ` + cleanContent };
+    });
   };
 
   const convertTabTableToMarkdown = (text: string): string => {
@@ -1593,20 +1690,15 @@ export default function App() {
 
           if (data.lastLatexResetDate !== todayStr) {
             updateData.latexCount = 0;
+            updateData.promptCount = 0;
             updateData.lastLatexResetDate = todayStr;
             needsUpdate = true;
           }
 
           const isOwner = checkIsOwnerEmail(user);
-          if (isOwner) {
-            if (data.status !== "approved" || data.role !== "admin") {
-              updateData.status = "approved";
-              updateData.role = "admin";
-              needsUpdate = true;
-            }
-          }
 
-          if (needsUpdate) {
+          if (needsUpdate && !(window as any)._hasAttemptedProfileUpdate) {
+            (window as any)._hasAttemptedProfileUpdate = true;
             updateDoc(userDocRef, updateData).catch((err) => {
               console.error("Lỗi tự động cập nhật quyền lợi:", err);
             });
@@ -1801,6 +1893,7 @@ export default function App() {
         latexCount: 0,
         queryCount: 0,
         examCount: 0,
+        promptCount: 0,
       });
       triggerToast("Đã thiết lập lại (reset) số lượt sử dụng của thành viên!");
     } catch (e) {
@@ -1808,7 +1901,7 @@ export default function App() {
     }
   };
 
-  const handleAdjustUserLimit = async (targetUid: string, field: "latexCount" | "queryCount" | "examCount", value: number) => {
+  const handleAdjustUserLimit = async (targetUid: string, field: "latexCount" | "queryCount" | "examCount" | "promptCount", value: number) => {
     try {
       await updateDoc(doc(db, "users", targetUid), {
         [field]: value,
@@ -2031,6 +2124,19 @@ export default function App() {
         });
       } catch (err) {
         console.error("Lỗi đếm số lần biên soạn đề:", err);
+      }
+    }
+  };
+
+  const incrementPromptCount = async () => {
+    if (user && userDoc) {
+      try {
+        await updateDoc(doc(db, "users", user.uid), {
+          promptCount: increment(1),
+          queryCount: increment(1),
+        });
+      } catch (err) {
+        console.error("Lỗi đếm số lượt dán thông minh AI:", err);
       }
     }
   };
@@ -2629,9 +2735,9 @@ ${cleanedBody}
       return;
     }
     const currentLatexCount = userDoc?.latexCount || 0;
-    if (!isApproved && currentLatexCount >= 20) {
+    if (!isApproved && currentLatexCount >= 25) {
       triggerToast(
-        "Bạn đã đạt giới hạn 20 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+        "Bạn đã đạt giới hạn 25 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
         false,
       );
       return;
@@ -2733,6 +2839,32 @@ ${cleanedBody}
     // Auto-apply smart formatting on paste to fix stuck words/numbers/delimiters instantly
     markdown = applySmartFormatting(markdown);
 
+    // Xử lý thông minh: Nếu người dùng dán nhiều câu hỏi cùng lúc, tự động phân tách và nạp vào đề!
+    const lines = markdown.split('\n');
+    let cauCount = 0;
+    for (const line of lines) {
+      if (/^(?:Câu|Bài)\s*(?:hỏi)?\s*(?:\d+)?\s*(?:[:.\-|\*]|$)/i.test(line.trim())) {
+        cauCount++;
+      }
+    }
+    
+    // Nếu có từ 2 câu trở lên, chạy tính năng "Dán thông minh" ẩn danh
+    if (cauCount >= 2) {
+      const currentPromptCount = userDoc?.promptCount || 0;
+      if (!isApproved && currentPromptCount >= 8) {
+        triggerToast(
+          "Bạn đã đạt giới hạn 8 lần sử dụng tính năng dán thông minh (AI) mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+          false,
+        );
+        return;
+      }
+      processMultipleQuestionsText(markdown);
+      incrementPromptCount();
+      // Xóa nội dung trong khung nhập hiện tại để tránh lưu trùng lặp
+      setter("");
+      return;
+    }
+
     const textEl = e.currentTarget;
     const start = textEl.selectionStart;
     const end = textEl.selectionEnd;
@@ -2774,9 +2906,9 @@ ${cleanedBody}
     }
 
     const currentLatexCount = userDoc?.latexCount || 0;
-    if (!isApproved && currentLatexCount >= 20) {
+    if (!isApproved && currentLatexCount >= 25) {
       triggerToast(
-        "Bạn đã đạt giới hạn 20 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+        "Bạn đã đạt giới hạn 25 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
         false,
       );
       return;
@@ -2813,9 +2945,9 @@ ${cleanedBody}
     }
 
     const currentLatexCount = userDoc?.latexCount || 0;
-    if (!isApproved && currentLatexCount >= 20) {
+    if (!isApproved && currentLatexCount >= 25) {
       triggerToast(
-        "Bạn đã đạt giới hạn 20 lượt tải tài liệu mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+        "Bạn đã đạt giới hạn 25 lượt tải tài liệu mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
         false,
       );
       return;
@@ -3434,9 +3566,9 @@ ${bodyHtml}
     }
 
     const currentLatexCount = userDoc?.latexCount || 0;
-    if (!isApproved && currentLatexCount >= 20) {
+    if (!isApproved && currentLatexCount >= 25) {
       triggerToast(
-        "Bạn đã đạt giới hạn 20 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+        "Bạn đã đạt giới hạn 25 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
         false,
       );
       return;
@@ -3569,9 +3701,9 @@ ${bodyHtml}
     }
 
     const currentLatexCount = userDoc?.latexCount || 0;
-    if (!isApproved && currentLatexCount >= 20) {
+    if (!isApproved && currentLatexCount >= 25) {
       triggerToast(
-        "Bạn đã đạt giới hạn 20 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
+        "Bạn đã đạt giới hạn 25 lượt chuyển đổi LaTeX mỗi ngày. Hãy liên hệ Admin qua email giathieu110406@gmail.com để được cấp quyền không giới hạn!",
         false,
       );
       return;
@@ -4187,11 +4319,12 @@ ${bodyHtml}
                                   </div>
                                 ) : (
                                   <>
-                                    <div className="flex items-center gap-3">
-                                      <span>Mã LaTeX: <strong>{u.latexCount || 0} / 20</strong></span>
+                                    <div className="flex flex-col gap-1">
+                                      <span>Mã LaTeX: <strong>{u.latexCount || 0} / 25</strong></span>
                                       <span>Đề thi: <strong>{u.examCount || 0} / 3</strong></span>
+                                      <span>Dán AI: <strong>{u.promptCount || 0} / 8</strong></span>
                                     </div>
-                                    <div className="text-slate-400 font-normal">Tổng yêu cầu: {u.queryCount || 0}</div>
+                                    <div className="text-slate-400 font-normal mt-1">Tổng yêu cầu: {u.queryCount || 0}</div>
                                   </>
                                 )}
                               </td>
@@ -4779,14 +4912,6 @@ ${bodyHtml}
                     Q-Builder - CÔNG CỤ BIÊN SOẠN ĐỀ THI
                   </span>
                 </div>
-                {docQuestions.length > 0 && (
-                  <button
-                    onClick={handleClearDocQuestions}
-                    className="w-auto flex items-center justify-center font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-xl text-slate-800 transition-all cursor-pointer text-xs px-3 py-1.5 shadow-2xs active:scale-95"
-                  >
-                    Xóa toàn bộ đề thi
-                  </button>
-                )}
               </div>
 
               {/* Workspace with inner padding and subtle background */}
@@ -4974,6 +5099,11 @@ ${bodyHtml}
                                 onClick={() => {
                                   setEditingQuestionId(null);
                                   setTracNghiemText("");
+                                  setTracNghiemAnswerText("");
+                                  setDungSaiText("");
+                                  setDungSaiAnswerText("");
+                                  setTraLoiNganText("");
+                                  setTraLoiNganAnswerText("");
                                   setTuLuanQuestionText("");
                                   setTuLuanAnswerText("");
                                   triggerToast("Đã hủy bỏ chỉnh sửa.", true);
@@ -4991,22 +5121,44 @@ ${bodyHtml}
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                           Phân loại câu hỏi mới
                         </label>
-                        <div className="grid grid-cols-2 gap-2 bg-slate-100/80 p-1 rounded-xl">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 bg-slate-100/80 p-1 rounded-xl">
                           <button
                             type="button"
                             onClick={() => setNewQuestionType("trac_nghiem")}
-                            className={`py-2 px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            className={`py-2 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                               newQuestionType === "trac_nghiem"
                                 ? "bg-gradient-to-r from-violet-200 via-sky-100 to-indigo-200 text-slate-800 shadow-xs border border-indigo-200/30 font-extrabold"
                                 : "text-slate-650 hover:text-slate-800"
                             }`}
                           >
-                            Trắc nghiệm
+                            TN 4 Lựa chọn
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewQuestionType("trac_nghiem_dung_sai")}
+                            className={`py-2 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              newQuestionType === "trac_nghiem_dung_sai"
+                                ? "bg-gradient-to-r from-violet-200 via-sky-100 to-indigo-200 text-slate-800 shadow-xs border border-indigo-200/30 font-extrabold"
+                                : "text-slate-650 hover:text-slate-800"
+                            }`}
+                          >
+                            TN Đúng/Sai
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewQuestionType("trac_nghiem_tra_loi_ngan")}
+                            className={`py-2 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              newQuestionType === "trac_nghiem_tra_loi_ngan"
+                                ? "bg-gradient-to-r from-violet-200 via-sky-100 to-indigo-200 text-slate-800 shadow-xs border border-indigo-200/30 font-extrabold"
+                                : "text-slate-650 hover:text-slate-800"
+                            }`}
+                          >
+                            TN Trả lời ngắn
                           </button>
                           <button
                             type="button"
                             onClick={() => setNewQuestionType("tu_luan")}
-                            className={`py-2 px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            className={`py-2 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                               newQuestionType === "tu_luan"
                                 ? "bg-gradient-to-r from-violet-200 via-sky-100 to-indigo-200 text-slate-800 shadow-xs border border-indigo-200/30 font-extrabold"
                                 : "text-slate-650 hover:text-slate-800"
@@ -5026,9 +5178,20 @@ ${bodyHtml}
                               Khung nhập câu hỏi trắc nghiệm
                               <span className="text-rose-500 font-bold">*</span>
                             </label>
-                            <span className="text-[10px] text-slate-400 italic">
-                              Đáp án trắc nghiệm có thể bỏ trống
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowSmartPasteModal(true)}
+                                className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                title="Dán câu hỏi và đáp án từ AI để tự động phân tách"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                Dán thông minh (AI)
+                              </button>
+                              <span className="text-[10px] text-slate-400 italic hidden md:inline-block">
+                                Đáp án trắc nghiệm có thể bỏ trống
+                              </span>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -5168,15 +5331,26 @@ ${bodyHtml}
                           </div>
                         </div>
                       ) : (
-                        /* TWO SIDE-BY-SIDE INPUT FRAMES for written/essay queries */
+                        /* Generic TWO SIDE-BY-SIDE INPUT FRAMES for other query types */
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center mb-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                              Khung nhập câu hỏi tự luận
+                              {newQuestionType === "trac_nghiem_dung_sai" ? "Khung nhập câu hỏi Trắc nghiệm Đúng/Sai" : newQuestionType === "trac_nghiem_tra_loi_ngan" ? "Khung nhập câu hỏi Trắc nghiệm Trả lời ngắn" : "Khung nhập câu hỏi tự luận"}
                             </label>
-                            <span className="text-[10px] text-slate-400 italic">
-                              Đáp án tự luận có thể bỏ trống
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowSmartPasteModal(true)}
+                                className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                title="Dán câu hỏi và đáp án từ AI để tự động phân tách"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                Dán thông minh (AI)
+                              </button>
+                              <span className="text-[10px] text-slate-400 italic hidden md:inline-block">
+                                Đáp án có thể bỏ trống
+                              </span>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -5187,29 +5361,37 @@ ${bodyHtml}
                                 <span className="text-rose-500">*</span>
                               </span>
                               <textarea
-                                value={tuLuanQuestionText}
-                                onChange={(e) =>
-                                  setTuLuanQuestionText(e.target.value)
-                                }
-                                onPaste={(e) =>
-                                  handlePasteGeneric(e, setTuLuanQuestionText)
-                                }
+                                value={newQuestionType === "trac_nghiem_dung_sai" ? dungSaiText : newQuestionType === "trac_nghiem_tra_loi_ngan" ? traLoiNganText : tuLuanQuestionText}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (newQuestionType === "trac_nghiem_dung_sai") setDungSaiText(val);
+                                  else if (newQuestionType === "trac_nghiem_tra_loi_ngan") setTraLoiNganText(val);
+                                  else setTuLuanQuestionText(val);
+                                }}
+                                onPaste={(e) => {
+                                  if (newQuestionType === "trac_nghiem_dung_sai") handlePasteGeneric(e, setDungSaiText);
+                                  else if (newQuestionType === "trac_nghiem_tra_loi_ngan") handlePasteGeneric(e, setTraLoiNganText);
+                                  else handlePasteGeneric(e, setTuLuanQuestionText);
+                                }}
                                 rows={5}
-                                placeholder="VD: Viết giả thuyết Goldbach bằng công thức toán học và chứng minh với trường hợp số 10."
+                                placeholder={
+                                  newQuestionType === "trac_nghiem_dung_sai" ? "VD: Cho hàm số y = ... Các mệnh đề sau đúng hay sai:\na) Hàm số nghịch biến...\nb) Đồ thị cắt trục tung...\nc) Đạo hàm...\nd) Hàm số đạt cực đại..." :
+                                  newQuestionType === "trac_nghiem_tra_loi_ngan" ? "VD: Tính thể tích khối chóp..." :
+                                  "VD: Viết giả thuyết Goldbach bằng công thức toán học và chứng minh với trường hợp số 10."
+                                }
                                 className="w-full bg-slate-50/40 border border-slate-200 rounded-xl p-3 text-xs md:text-sm text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white outline-none font-normal leading-relaxed"
                               />
-                              {tuLuanQuestionText.trim() && (
+                              {(newQuestionType === "trac_nghiem_dung_sai" ? dungSaiText : newQuestionType === "trac_nghiem_tra_loi_ngan" ? traLoiNganText : tuLuanQuestionText).trim() && (
                                 <div className="mt-1.5 p-3 rounded-xl bg-slate-50/40 border border-dashed border-slate-200 text-xs text-slate-800 max-h-[200px] overflow-y-auto">
                                   <span className="text-[10px] font-bold text-indigo-650 uppercase tracking-wider block mb-1.5 select-none flex items-center gap-1">
-                                    <span>👁️</span> Xem trước nội dung câu hỏi
-                                    tự luận:
+                                    <span>👁️</span> Xem trước nội dung câu hỏi:
                                   </span>
                                   <div
                                     className="preview-content font-normal text-left whitespace-normal break-words overflow-x-auto select-text"
                                     dangerouslySetInnerHTML={{
                                       __html: renderContentWithMath(
                                         getCleanQuestionBody(
-                                          tuLuanQuestionText,
+                                          newQuestionType === "trac_nghiem_dung_sai" ? dungSaiText : newQuestionType === "trac_nghiem_tra_loi_ngan" ? traLoiNganText : tuLuanQuestionText
                                         ),
                                       ),
                                     }}
@@ -5224,18 +5406,27 @@ ${bodyHtml}
                                 2. Đáp án giải chi tiết (Có thể bỏ trống)
                               </span>
                               <textarea
-                                value={tuLuanAnswerText}
-                                onChange={(e) =>
-                                  setTuLuanAnswerText(e.target.value)
-                                }
-                                onPaste={(e) =>
-                                  handlePasteGeneric(e, setTuLuanAnswerText)
-                                }
+                                value={newQuestionType === "trac_nghiem_dung_sai" ? dungSaiAnswerText : newQuestionType === "trac_nghiem_tra_loi_ngan" ? traLoiNganAnswerText : tuLuanAnswerText}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (newQuestionType === "trac_nghiem_dung_sai") setDungSaiAnswerText(val);
+                                  else if (newQuestionType === "trac_nghiem_tra_loi_ngan") setTraLoiNganAnswerText(val);
+                                  else setTuLuanAnswerText(val);
+                                }}
+                                onPaste={(e) => {
+                                  if (newQuestionType === "trac_nghiem_dung_sai") handlePasteGeneric(e, setDungSaiAnswerText);
+                                  else if (newQuestionType === "trac_nghiem_tra_loi_ngan") handlePasteGeneric(e, setTraLoiNganAnswerText);
+                                  else handlePasteGeneric(e, setTuLuanAnswerText);
+                                }}
                                 rows={5}
-                                placeholder="VD: Với $n=10$, ta có: $10 = 3 + 7 = 5 + 5$ trong đó $3, 5, 7$ đều là các số nguyên tố."
+                                placeholder={
+                                  newQuestionType === "trac_nghiem_dung_sai" ? "VD: a) Đúng\nb) Sai\nc) Đúng\nd) Sai" :
+                                  newQuestionType === "trac_nghiem_tra_loi_ngan" ? "VD: Đáp án: 12" :
+                                  "VD: Nhập nội dung hướng dẫn giải chi tiết..."
+                                }
                                 className="w-full bg-slate-50/40 border border-slate-200 rounded-xl p-3 text-xs md:text-sm text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white outline-none font-normal leading-relaxed"
                               />
-                              {tuLuanAnswerText.trim() && (
+                              {(newQuestionType === "trac_nghiem_dung_sai" ? dungSaiAnswerText : newQuestionType === "trac_nghiem_tra_loi_ngan" ? traLoiNganAnswerText : tuLuanAnswerText).trim() && (
                                 <div className="mt-1.5 p-3 rounded-xl bg-slate-50/40 border border-dashed border-slate-200 text-xs text-slate-800 max-h-[200px] overflow-y-auto">
                                   <span className="text-[10px] font-bold text-emerald-650 uppercase tracking-wider block mb-1.5 select-none flex items-center gap-1">
                                     <span>👁️</span> Xem trước đáp án giải chi
@@ -5244,8 +5435,9 @@ ${bodyHtml}
                                   <div
                                     className="preview-content font-normal text-left whitespace-normal break-words overflow-x-auto select-text"
                                     dangerouslySetInnerHTML={{
-                                      __html:
-                                        renderContentWithMath(tuLuanAnswerText),
+                                      __html: renderContentWithMath(
+                                        newQuestionType === "trac_nghiem_dung_sai" ? dungSaiAnswerText : newQuestionType === "trac_nghiem_tra_loi_ngan" ? traLoiNganAnswerText : tuLuanAnswerText
+                                      ),
                                     }}
                                   />
                                 </div>
@@ -5263,6 +5455,11 @@ ${bodyHtml}
                             onClick={() => {
                               setEditingQuestionId(null);
                               setTracNghiemText("");
+                              setTracNghiemAnswerText("");
+                              setDungSaiText("");
+                              setDungSaiAnswerText("");
+                              setTraLoiNganText("");
+                              setTraLoiNganAnswerText("");
                               setTuLuanQuestionText("");
                               setTuLuanAnswerText("");
                               triggerToast("Đã hủy bỏ chỉnh sửa.", true);
@@ -5359,14 +5556,14 @@ ${bodyHtml}
                                         title="Bấm để chỉnh sửa câu hỏi này"
                                       >
                                         <span
-                                          className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                                            q.type === "trac_nghiem"
-                                              ? "bg-slate-100 text-slate-700 border border-slate-200"
-                                              : "bg-slate-100 text-slate-700 border border-slate-200"
-                                          }`}
+                                          className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200"
                                         >
                                           {q.type === "trac_nghiem"
-                                            ? "Trắc nghiệm"
+                                            ? "TN 4 Lựa chọn"
+                                            : q.type === "trac_nghiem_dung_sai"
+                                            ? "TN Đúng/Sai"
+                                            : q.type === "trac_nghiem_tra_loi_ngan"
+                                            ? "TN Trả lời ngắn"
                                             : "Tự luận"}
                                         </span>
                                       </td>
@@ -5677,6 +5874,114 @@ ${bodyHtml}
                               </div>
                             )}
 
+                            {dungSaiList.length > 0 && (
+                              <div className="space-y-4">
+                                <div className="doc-section-header font-extrabold text-slate-900 border-b-2 border-slate-800 pb-1.5 text-left text-sm md:text-base uppercase flex items-center justify-between">
+                                  <span className="doc-section-title">
+                                    {labelDungSai}
+                                  </span>
+                                </div>
+                                <div className="space-y-4">
+                                  {dungSaiList.map((q, idx) => {
+                                    const displayNum = idx + 1;
+                                    const cleanText = getCleanQuestionBody(
+                                      q.questionText,
+                                    );
+                                    return (
+                                      <div
+                                        key={q.id}
+                                        className="doc-question-item space-y-3"
+                                      >
+                                        <div className="flex items-start gap-1">
+                                          <span className="doc-type-badge font-bold text-slate-900 select-none shrink-0">
+                                            Câu {displayNum}.
+                                          </span>
+                                          <div
+                                            className="text-slate-850 font-normal leading-relaxed overflow-x-auto select-all w-full text-left"
+                                            dangerouslySetInnerHTML={{
+                                              __html:
+                                                renderContentWithMath(
+                                                  cleanText,
+                                                ),
+                                            }}
+                                          />
+                                        </div>
+                                        {q.answerText && (
+                                          <div className="doc-answer-block ml-5 p-3 rounded-lg bg-emerald-50/40 border border-emerald-100/60 text-slate-700 space-y-1">
+                                            <span className="doc-answer-title text-[10px] font-bold text-emerald-700 uppercase tracking-widest block select-none mb-1">
+                                              ĐÁP ÁN / HƯỚNG DẪN GIẢI CHI TIẾT:
+                                            </span>
+                                            <div
+                                              className="doc-answer-body text-xs md:text-sm font-normal text-slate-600 space-y-1 leading-relaxed overflow-x-auto select-all w-full text-left"
+                                              dangerouslySetInnerHTML={{
+                                                __html: renderContentWithMath(
+                                                  q.answerText,
+                                                ),
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {traLoiNganList.length > 0 && (
+                              <div className="space-y-4">
+                                <div className="doc-section-header font-extrabold text-slate-900 border-b-2 border-slate-800 pb-1.5 text-left text-sm md:text-base uppercase flex items-center justify-between">
+                                  <span className="doc-section-title">
+                                    {labelTraLoiNgan}
+                                  </span>
+                                </div>
+                                <div className="space-y-4">
+                                  {traLoiNganList.map((q, idx) => {
+                                    const displayNum = idx + 1;
+                                    const cleanText = getCleanQuestionBody(
+                                      q.questionText,
+                                    );
+                                    return (
+                                      <div
+                                        key={q.id}
+                                        className="doc-question-item space-y-3"
+                                      >
+                                        <div className="flex items-start gap-1">
+                                          <span className="doc-type-badge font-bold text-slate-900 select-none shrink-0">
+                                            Câu {displayNum}.
+                                          </span>
+                                          <div
+                                            className="text-slate-850 font-normal leading-relaxed overflow-x-auto select-all w-full text-left"
+                                            dangerouslySetInnerHTML={{
+                                              __html:
+                                                renderContentWithMath(
+                                                  cleanText,
+                                                ),
+                                            }}
+                                          />
+                                        </div>
+                                        {q.answerText && (
+                                          <div className="doc-answer-block ml-5 p-3 rounded-lg bg-emerald-50/40 border border-emerald-100/60 text-slate-700 space-y-1">
+                                            <span className="doc-answer-title text-[10px] font-bold text-emerald-700 uppercase tracking-widest block select-none mb-1">
+                                              ĐÁP ÁN / HƯỚNG DẪN GIẢI CHI TIẾT:
+                                            </span>
+                                            <div
+                                              className="doc-answer-body text-xs md:text-sm font-normal text-slate-600 space-y-1 leading-relaxed overflow-x-auto select-all w-full text-left"
+                                              dangerouslySetInnerHTML={{
+                                                __html: renderContentWithMath(
+                                                  q.answerText,
+                                                ),
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
                             {tuLuanList.length > 0 && (
                               <div className="space-y-4">
                                 <div className="doc-section-header font-extrabold text-slate-900 border-b-2 border-slate-800 pb-1.5 text-left text-sm md:text-base uppercase flex items-center justify-between">
@@ -5761,6 +6066,63 @@ ${bodyHtml}
             </div>
           </>
         )}
+
+        {/* Smart Paste Modal */}
+        <AnimatePresence>
+          {showSmartPasteModal && (
+            <div
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto"
+              style={{ padding: "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)" }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col"
+              >
+                <div className="bg-slate-50 border-b border-slate-200 px-5 py-4 flex justify-between items-center relative">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <h3 className="font-bold text-slate-800 text-sm md:text-base tracking-tight">
+                      Dán thông minh từ AI
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowSmartPasteModal(false)}
+                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-5 md:p-6 flex-1 flex flex-col gap-4">
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                    Hãy dán nguyên bản toàn bộ phản hồi từ AI (bao gồm cả đề bài, các đáp án và lời giải). Hệ thống sẽ tự động phân tách và sắp xếp chúng vào đúng các ô nhập liệu cho bạn. Các lỗi logic định dạng cũng sẽ tự động được sửa.
+                  </p>
+                  <textarea
+                    value={smartPasteText}
+                    onChange={(e) => setSmartPasteText(e.target.value)}
+                    placeholder="Dán (Ctrl+V) toàn bộ nội dung câu hỏi và đáp án từ ChatGPT/Gemini vào đây..."
+                    className="w-full h-64 p-4 text-sm rounded-xl border border-slate-200 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50"
+                  />
+                  <div className="flex justify-end gap-3 mt-2">
+                    <button
+                      onClick={() => setShowSmartPasteModal(false)}
+                      className="px-4 py-2 text-slate-600 font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg text-sm transition-colors"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      onClick={handleSmartPasteProcess}
+                      className="px-5 py-2 text-white font-bold bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm shadow-md transition-colors"
+                    >
+                      Phân tách & Nhập
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Feedback Modal Popup */}
         <AnimatePresence>
@@ -6089,7 +6451,7 @@ ${bodyHtml}
             <strong className="text-slate-800 font-semibold">
               Trần Gia Thiều - Giathieu110406@gmail.com
             </strong>{" "}
-            · Phiên bản v3.4
+            · Phiên bản v3.5
           </p>
           <p className="text-[11px] text-slate-400 font-medium">
             © Q-Builder · Số hóa công thức LaTeX · Tự động hóa xây dựng đề thi ·
