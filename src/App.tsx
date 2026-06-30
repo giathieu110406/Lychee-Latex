@@ -1047,27 +1047,27 @@ export default function App() {
             margin: 2cm;
         }
         body {
-            font-family: 'Times New Roman', Times, serif;
+            font-family: ${wordFont};
             font-size: 13pt;
             line-height: 1.15;
             color: #000000;
             margin: 0;
         }
-        p, li, span, select, tr, td, th {
-            font-family: 'Times New Roman', Times, serif !important;
+        h1, h2, h3, h4, h5, h6, h1, h2, h3, h4, h5, h6, p, li, span, select, tr, td, th {
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
         div, table {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
         }
         div.doc-display-math {
-            margin-top: 14pt !important;
-            margin-bottom: 14pt !important;
+            margin-top: 6pt !important;
+            margin-bottom: 6pt !important;
             text-align: center !important;
         }
         table.doc-answer-table {
@@ -1179,27 +1179,27 @@ export default function App() {
             margin: 2cm;
         }
         body {
-            font-family: 'Times New Roman', Times, serif;
+            font-family: ${wordFont};
             font-size: 13pt;
             line-height: 1.15;
             color: #000000;
             margin: 0;
         }
         p, li, span, select, tr, td, th {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
         div, table {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
         }
         div.doc-display-math {
-            margin-top: 14pt !important;
-            margin-bottom: 14pt !important;
+            margin-top: 6pt !important;
+            margin-bottom: 6pt !important;
             text-align: center !important;
         }
         table.doc-answer-table {
@@ -2856,27 +2856,49 @@ ${cleanedBody}
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tài liệu LaTeX - PDF</title>
+  <title>Tài liệu - PDF</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <style>
     @page {
       size: A4;
-      margin: 2cm 2.5cm;
+      margin: 2cm;
     }
     * { box-sizing: border-box; }
     body {
-      font-family: 'Times New Roman', Times, serif;
+      font-family: ${wordFont};
       font-size: 13pt;
-      line-height: 1.5;
+      line-height: 1.15;
       color: #000;
       margin: 0;
       padding: 0;
       background: white;
     }
-    p { margin: 0 0 6pt 0; }
-    h1, h2, h3 { page-break-after: avoid; }
+    h1, h2, h3, h4, h5, h6, p, li, span, select, tr, td, th {
+      font-family: ${wordFont} !important;
+      font-size: 13pt !important;
+      line-height: 1.15 !important;
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    div, table {
+      font-family: ${wordFont} !important;
+      font-size: 13pt !important;
+      line-height: 1.15 !important;
+    }
+    div.doc-display-math {
+      margin-top: 6pt !important;
+      margin-bottom: 6pt !important;
+      text-align: center !important;
+    }
+    table.doc-answer-table {
+      margin-top: 16pt !important;
+      margin-bottom: 12pt !important;
+      border: 1px solid #475569 !important;
+      background-color: transparent !important;
+    }
     table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
-    table th, table td { border: 1px solid #888; padding: 4pt 6pt; font-size: 12pt; }
+    table th, table td { border: 1px solid #000; padding: 4pt 6pt; font-size: 13pt; }
     table th { font-weight: bold; background: #f5f5f5; }
     .katex { font-size: 1em; }
     .katex-display { margin: 8pt 0; text-align: center; overflow-x: auto; }
@@ -2946,6 +2968,38 @@ ${bodyHtml}
   };
 
   const injectInlineStyles = (root: HTMLDivElement) => {
+    root.querySelectorAll("h1").forEach((el) => {
+      const element = el as HTMLElement;
+      element.style.margin = "0";
+      element.style.fontFamily = wordFont;
+      element.style.fontSize = "18pt";
+      element.style.fontWeight = "bold";
+      element.style.lineHeight = "1.2";
+    });
+    root.querySelectorAll("h2").forEach((el) => {
+      const element = el as HTMLElement;
+      element.style.margin = "0";
+      element.style.fontFamily = wordFont;
+      element.style.fontSize = "16pt";
+      element.style.fontWeight = "bold";
+      element.style.lineHeight = "1.2";
+    });
+    root.querySelectorAll("h3").forEach((el) => {
+      const element = el as HTMLElement;
+      element.style.margin = "0";
+      element.style.fontFamily = wordFont;
+      element.style.fontSize = "14pt";
+      element.style.fontWeight = "bold";
+      element.style.lineHeight = "1.2";
+    });
+    root.querySelectorAll("h4, h5, h6").forEach((el) => {
+      const element = el as HTMLElement;
+      element.style.margin = "0";
+      element.style.fontFamily = wordFont;
+      element.style.fontSize = "13pt";
+      element.style.fontWeight = "bold";
+      element.style.lineHeight = "1.2";
+    });
     root.querySelectorAll("p").forEach((el) => {
       const element = el as HTMLElement;
       element.style.margin = "0";
@@ -2978,7 +3032,7 @@ ${bodyHtml}
         });
 
         const p = document.createElement("p");
-        p.style.margin = "3pt 0 3pt 20pt";
+        p.style.margin = "0 0 0 20pt";
         p.style.paddingLeft = "20pt";
         p.style.textIndent = "-20pt";
         p.style.fontFamily = wordFont;
@@ -3009,7 +3063,7 @@ ${bodyHtml}
         });
 
         const p = document.createElement("p");
-        p.style.margin = "3pt 0 3pt 15pt";
+        p.style.margin = "0 0 0 15pt";
         p.style.paddingLeft = "15pt";
         p.style.textIndent = "-15pt";
         p.style.fontFamily = wordFont;
@@ -3044,7 +3098,6 @@ ${bodyHtml}
       const element = el as HTMLElement;
       element.style.fontSize = "16pt";
       element.style.fontWeight = "800";
-      element.style.textTransform = "uppercase";
       element.style.textAlign = "center";
       element.style.color = "#111827";
       element.style.margin = "0";
@@ -3065,7 +3118,6 @@ ${bodyHtml}
       element.style.fontWeight = "bold";
       element.style.color = "#111827";
       element.style.fontSize = "14pt";
-      element.style.textTransform = "uppercase";
       element.style.borderBottom = "2px solid #111827";
       element.style.paddingBottom = "4pt";
       element.style.marginTop = "0";
@@ -3090,7 +3142,7 @@ ${bodyHtml}
           const badgeText = badge.textContent || "";
 
           const p = document.createElement("p");
-          p.style.margin = "4pt 0 6pt 0";
+          p.style.margin = "0";
           p.style.paddingLeft = "45pt";
           p.style.textIndent = "-45pt";
           p.style.display = "block";
@@ -3101,7 +3153,7 @@ ${bodyHtml}
 
           contentDiv.querySelectorAll("p").forEach((childP) => {
             (childP as HTMLElement).style.paddingLeft = "45pt";
-            (childP as HTMLElement).style.margin = "3pt 0";
+            (childP as HTMLElement).style.margin = "0";
           });
 
           p.innerHTML = `<span class="doc-type-badge" style="font-family: ${wordFont}; font-size: 13pt; font-weight: bold; color: #111827; margin-right: 6px; display: inline-block;">${badgeText}</span> ${contentDiv.innerHTML}`;
@@ -3223,7 +3275,7 @@ ${bodyHtml}
       const bodyHtml = bodyEl ? bodyEl.innerHTML : "";
 
       const tableHtml = `
-        <table class="doc-answer-table" border="1" cellspacing="0" cellpadding="0" style="width: 100%; border-collapse: collapse; border: 1px solid #475569; margin-top: 14pt; margin-bottom: 14pt; background-color: transparent; margin-left: 20pt;">
+        <table class="doc-answer-table" border="1" cellspacing="0" cellpadding="0" style="width: 100%; border-collapse: collapse; border: 1px solid #475569; margin-top: 16pt; margin-bottom: 12pt; background-color: transparent; margin-left: 20pt;">
           <tr>
             <td style="padding: 10pt; border: none; font-family: ${wordFont}; margin: 0;">
               <span style="font-family: ${wordFont}; font-size: 13pt; font-weight: bold; color: #1e293b; margin-bottom: 4pt; letter-spacing: 0.05em; text-transform: uppercase; display: block; line-height: 1.15;">
@@ -3376,7 +3428,7 @@ ${bodyHtml}
           const container = document.createElement("div");
           container.className = "doc-display-math";
           container.style.textAlign = "center";
-          container.style.margin = "12pt 0";
+          container.style.margin = "6pt 0";
           container.appendChild(mathEl);
           wrapper.replaceWith(container);
         } else {
@@ -3420,27 +3472,27 @@ ${bodyHtml}
             margin: 2cm;
         }
         body {
-            font-family: 'Times New Roman', Times, serif;
+            font-family: ${wordFont};
             font-size: 13pt;
             line-height: 1.15;
             color: #000000;
             margin: 0;
         }
         p, li, span, select, tr, td, th {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
         div, table {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
         }
         div.doc-display-math {
-            margin-top: 14pt !important;
-            margin-bottom: 14pt !important;
+            margin-top: 6pt !important;
+            margin-bottom: 6pt !important;
             text-align: center !important;
         }
         table.doc-answer-table {
@@ -3555,27 +3607,27 @@ ${bodyHtml}
             margin: 2cm;
         }
         body {
-            font-family: 'Times New Roman', Times, serif;
+            font-family: ${wordFont};
             font-size: 13pt;
             line-height: 1.15;
             color: #000000;
             margin: 0;
         }
         p, li, span, select, tr, td, th {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
         div, table {
-            font-family: 'Times New Roman', Times, serif !important;
+            font-family: ${wordFont} !important;
             font-size: 13pt !important;
             line-height: 1.15 !important;
         }
         div.doc-display-math {
-            margin-top: 14pt !important;
-            margin-bottom: 14pt !important;
+            margin-top: 6pt !important;
+            margin-bottom: 6pt !important;
             text-align: center !important;
         }
         table.doc-answer-table {
