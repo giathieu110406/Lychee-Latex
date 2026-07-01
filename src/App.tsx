@@ -10,6 +10,10 @@ import {
   ShieldAlert,
   Sparkles,
   CheckCircle2,
+  LogOut,
+  Bell,
+  MessageSquare,
+  Settings
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import katex from "katex";
@@ -4141,20 +4145,22 @@ ${bodyHtml}
           </div>
 
           {/* PHẢI: các phần góp ý, thông báo, và nút thoát */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Quản trị */}
             {isAdminUser(user, userDoc) && (
               <button
                 onClick={() => {
                   setAdminTab(adminTab === "tool" ? "admin" : "tool");
                 }}
-                className={`flex items-center font-bold text-xs px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                className={`flex items-center justify-center font-bold text-xs p-1.5 sm:px-3 sm:py-1.5 rounded-lg border transition-all cursor-pointer ${
                   adminTab === "admin"
                     ? "bg-gradient-to-r from-amber-200 via-orange-100 to-amber-200 text-amber-950 border-amber-300 shadow-2xs"
                     : "bg-gradient-to-r from-violet-100 via-sky-50 to-indigo-100 border-indigo-200/60 text-slate-800 hover:from-violet-200 hover:to-indigo-200"
                 }`}
+                title={adminTab === "admin" ? "Công cụ" : "Quản trị"}
               >
-                <span>{adminTab === "admin" ? "Công cụ" : "Quản trị"}</span>
+                <Settings className="w-4 h-4 sm:hidden" />
+                <span className="hidden sm:inline">{adminTab === "admin" ? "Công cụ" : "Quản trị"}</span>
               </button>
             )}
 
@@ -4167,25 +4173,27 @@ ${bodyHtml}
                   setIsFeedbackOpen(true);
                 }
               }}
-              className="bg-gradient-to-r from-violet-100 via-sky-50 to-indigo-100 border-indigo-200/60 text-slate-800 hover:from-violet-200 hover:to-indigo-200 px-3 py-1.5 rounded-lg transition-all cursor-pointer font-bold text-xs border"
+              className="flex items-center justify-center bg-gradient-to-r from-violet-100 via-sky-50 to-indigo-100 border-indigo-200/60 text-slate-800 hover:from-violet-200 hover:to-indigo-200 p-1.5 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer font-bold text-xs border"
               title={isAdminUser(user, userDoc) ? "Xem danh sách phản hồi" : "Gửi phản hồi đóng góp ý kiến hoặc báo lỗi"}
             >
-              <span>{isAdminUser(user, userDoc) ? "Xem góp ý" : "Góp ý"}</span>
+              <MessageSquare className="w-4 h-4 sm:hidden" />
+              <span className="hidden sm:inline">{isAdminUser(user, userDoc) ? "Xem góp ý" : "Góp ý"}</span>
             </button>
 
             {/* Thông báo */}
             <button
               onClick={() => setIsNotificationsOpen(true)}
-              className={`relative text-slate-800 border px-3 py-1.5 rounded-lg transition-all cursor-pointer font-bold text-xs flex items-center justify-center shrink-0 ${
+              className={`relative text-slate-800 border p-1.5 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer font-bold text-xs flex items-center justify-center shrink-0 ${
                 isNotificationsOpen
                   ? "bg-gradient-to-r from-violet-200 to-indigo-200 border-indigo-300 shadow-inner"
                   : "bg-gradient-to-r from-violet-100 via-sky-50 to-indigo-100 border-indigo-200/60 hover:from-violet-200 hover:to-indigo-200"
               }`}
               title="Thông báo hệ thống và phản hồi"
             >
-              <span>Thông báo</span>
+              <Bell className="w-4 h-4 sm:hidden" />
+              <span className="hidden sm:inline">Thông báo</span>
               {unreadCount > 0 && (
-                <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black leading-none text-white ring-2 ring-slate-100 animate-bounce">
+                <span className="absolute -top-1 -right-1 sm:static sm:ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black leading-none text-white ring-2 ring-slate-100 animate-bounce">
                   {unreadCount}
                 </span>
               )}
@@ -4194,10 +4202,11 @@ ${bodyHtml}
             {/* Thoát */}
             <button
               onClick={handleLogout}
-              className="bg-gradient-to-r from-rose-100 via-pink-50 to-rose-150/80 hover:bg-gradient-to-r hover:from-rose-500 hover:to-rose-600 hover:text-white text-slate-800 border border-rose-200/60 px-3 py-1.5 rounded-lg transition-all cursor-pointer font-bold text-xs shadow-2xs"
+              className="flex items-center justify-center bg-gradient-to-r from-rose-100 via-pink-50 to-rose-150/80 hover:bg-gradient-to-r hover:from-rose-500 hover:to-rose-600 hover:text-white text-slate-800 border border-rose-200/60 p-1.5 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer font-bold text-xs shadow-2xs"
               title="Đăng xuất khỏi hệ thống"
             >
-              <span>Thoát</span>
+              <LogOut className="w-4 h-4 sm:hidden" />
+              <span className="hidden sm:inline">Thoát</span>
             </button>
           </div>
         </div>
@@ -4416,10 +4425,10 @@ ${bodyHtml}
                       const ratingStars = Array(5).fill(0).map((_, i) => i < (fb.rating || 5));
                       return (
                         <div key={fb.id} className="bg-slate-50 border border-slate-200/70 rounded-2xl p-5 relative transition-all hover:bg-slate-100/30">
-                          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                            <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-start md:items-center justify-between gap-3 mb-3">
+                            <div className="flex flex-wrap items-center gap-2 break-all">
                               <span className="font-extrabold text-slate-800 text-sm">{fb.displayName || "Người dùng ẩn danh"}</span>
-                              <span className="text-xs text-slate-400">• {fb.email}</span>
+                              <span className="text-xs text-slate-400 break-all w-full sm:w-auto">• {fb.email}</span>
                               <span className="text-[10px] font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">{fb.version || "v1.0"}</span>
                             </div>
                             <span className="text-xs text-slate-400">
@@ -4668,7 +4677,7 @@ ${bodyHtml}
                 {/* Main Workspaces Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-1">
                   {/* Left panel: Input Area */}
-                  <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[340px] sm:h-[400px] md:h-[480px] lg:h-[580px]">
+                  <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px] lg:min-h-[580px] flex-1">
                     <div className="bg-gradient-to-r from-violet-100/60 via-sky-50/40 to-indigo-100/60 px-4 py-2.5 md:px-5 md:py-3.5 border-b border-indigo-200/40 flex justify-between items-center">
                       <span className="text-xs md:text-sm font-bold text-slate-700">
                         1. Nhập hoặc dán văn bản từ AI
@@ -4736,7 +4745,7 @@ ${bodyHtml}
                   </div>
 
                   {/* Right panel: Preview & Advanced Copy Area */}
-                  <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[340px] sm:h-[400px] md:h-[480px] lg:h-[580px]">
+                  <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px] lg:min-h-[580px] flex-1">
                     {/* Header with Switch output tabs */}
                     <div className="bg-gradient-to-r from-violet-100/60 via-sky-50/40 to-indigo-100/60 px-3 py-2 md:px-4 md:py-2.5 border-b border-indigo-200/40 flex flex-wrap justify-between items-center gap-2">
                       <div className="flex bg-slate-200/60 p-0.5 rounded-lg text-[11px] md:text-xs font-semibold gap-0.5">
@@ -5496,7 +5505,7 @@ ${bodyHtml}
                             ở trên!
                           </p>
                         ) : (
-                          <div className="max-h-[212px] overflow-y-auto border border-slate-200/60 rounded-xl">
+                          <div className="max-h-[212px] overflow-y-auto overflow-x-auto border border-slate-200/60 rounded-xl">
                             <table className="w-full text-left text-xs border-collapse">
                               <thead>
                                 <tr className="bg-slate-50 text-slate-500 border-b border-slate-200/80">
@@ -5716,7 +5725,7 @@ ${bodyHtml}
                               </p>
                             </div>
                           ) : (
-                            <div className="doc-header-block border-b-2 border-double border-slate-850 pb-4 select-text">
+                            <div className="doc-header-block border-b-2 border-double border-slate-850 pb-4 select-text overflow-x-auto">
                               <table
                                 style={{
                                   width: "100%",
@@ -6209,7 +6218,7 @@ ${bodyHtml}
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block">
                       Phân loại ý kiến
                     </label>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {(["suggestion", "bug", "request", "other"] as const).map(
                         (type) => (
                           <button
