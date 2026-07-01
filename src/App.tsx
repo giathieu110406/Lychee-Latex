@@ -192,6 +192,49 @@ function applySmartFormatting(text: string): string {
   const { protectedText, urls } = protectUrls(text);
   let formatted = protectedText;
 
+  // Mảng bảo vệ tạm thời cho các khối toán học và bảng biểu
+  const protectedBlocks: string[] = [];
+
+  // 1. Bảo vệ các dòng bảng biểu (bắt đầu bằng ký tự |)
+  let lines = formatted.split("\n");
+  lines = lines.map(line => {
+    if (line.trim().startsWith("|")) {
+      const idx = protectedBlocks.length;
+      protectedBlocks.push(line);
+      return `@@@PROTECTED_BLOCK_${idx}@@@`;
+    }
+    return line;
+  });
+  formatted = lines.join("\n");
+
+  // 2. Bảo vệ các khối toán học LaTeX để tránh bị định dạng nhầm
+  const DISPLAY_MATH_REGEX = /\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\begin\{(equation|align|gather|multline|eqnarray|alignat|flalign|split|cases|aligned|alignedat|pmatrix|bmatrix|vmatrix|Bmatrix|Vmatrix|matrix|array)(\*?)\}([\s\S]*?)\\end\{(?:equation|align|gather|multline|eqnarray|alignat|flalign|split|cases|aligned|alignedat|pmatrix|bmatrix|vmatrix|Bmatrix|Vmatrix|matrix|array)\*?\}/gi;
+  const INLINE_PAREN_REGEX = /\\\([\s\S]*?\\\)/g;
+  const INLINE_MATH_REGEX = /(?<!\$)\$(?!\$)((?:[^$\n\\]|\\[\s\S])*?)(?<!\$)\$(?!\$)/g;
+
+  // Trích xuất display math và environments
+  formatted = formatted.replace(DISPLAY_MATH_REGEX, (match) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(match);
+    return `@@@PROTECTED_BLOCK_${idx}@@@`;
+  });
+
+  // Trích xuất inline math bọc bằng \( \)
+  formatted = formatted.replace(INLINE_PAREN_REGEX, (match) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(match);
+    return `@@@PROTECTED_BLOCK_${idx}@@@`;
+  });
+
+  // Trích xuất inline math bọc bằng $ $
+  formatted = formatted.replace(INLINE_MATH_REGEX, (match) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(match);
+    return `@@@PROTECTED_BLOCK_${idx}@@@`;
+  });
+
+  // --- ÁP DỤNG CÁC QUY TẮC ĐỊNH DẠNG THÔNG MINH ---
+
   // 1. Phân tách câu viết liền viết hoa sau inline math: $math$Đạo -> $math$\nĐạo
   // Sử dụng Unicode property escapes để chuẩn xác với mọi loại phông tiếng Việt có dấu
   const capWords = "[\\p{Lu}][\\p{Ll}\\p{M}]+";
@@ -254,7 +297,7 @@ function applySmartFormatting(text: string): string {
   );
   formatted = formatted.replace(closeParenWordPattern, "$1 $2");
 
-  // 10. Thêm khoảng cách thích hợp xung quanh các ký hiệu đô-la toán học ($ hoặc $$) dính liền với chữ/số thông thường
+  // 10. Thêm khoảng cách thích hợp xung quanh các ký hiệu đô-la toán học ($ hoặc $$) dính liền with chữ/số thông thường
   const letterMathStartPattern = new RegExp(
     "(" + letterPatternStr + "|\\d|%)(\\${1,2})",
     "gu",
@@ -272,8 +315,18 @@ function applySmartFormatting(text: string): string {
   
   // 12. Sửa lỗi in đậm thiếu dấu sao ở cuối: **chữ* -> **chữ**
   formatted = formatted.replace(/\*\*([^\*\n]*?[^\*\s\n])(?<!\*)\*(?!\*)/g, '**$1**');
+  
   // 13. Sửa khoảng trắng thừa sát dấu in đậm: ** chữ ** -> **chữ**
   formatted = formatted.replace(/\*\*\s+(.*?)\s+\*\*/g, '**$1**');
+
+  // --- KHÔI PHỤC LẠI CÁC KHỐI ĐÃ ĐƯỢC BẢO VỆ ---
+  let prevFormatted;
+  do {
+    prevFormatted = formatted;
+    formatted = formatted.replace(/@@@PROTECTED_BLOCK_(\d+)@@@/g, (match, idStr) => {
+      return protectedBlocks[+idStr] ?? match;
+    });
+  } while (formatted !== prevFormatted);
 
   // Restore original URLs as is (forceOriginal = true)
   return restoreUrls(formatted, urls, true);
@@ -4774,7 +4827,7 @@ ${bodyHtml}
                 {/* Main Workspaces Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-1">
                   {/* Left panel: Input Area */}
-                    <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[500px] lg:h-[600px] flex-1">
+                    <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[500px] lg:h-[600px] w-full">
                     <div className="bg-gradient-to-r from-violet-100/60 via-sky-50/40 to-indigo-100/60 px-4 py-2.5 md:px-5 md:py-3.5 border-b border-indigo-200/40 flex justify-between items-center">
                       <span className="text-xs md:text-sm font-bold text-slate-700">
                         1. Nhập hoặc dán văn bản từ AI
@@ -4835,7 +4888,7 @@ ${bodyHtml}
                       onChange={(e) => setInputText(e.target.value)}
                       onPaste={handlePasteChange}
                       disabled={isFixingLogic}
-                      className={`flex-1 w-full p-4 md:p-5 resize-none border-0 focus:ring-0 focus:outline-none text-slate-700 leading-relaxed text-sm md:text-base font-normal placeholder:text-slate-400 bg-linear-to-b from-white to-slate-50/20 ${isFixingLogic ? 'opacity-50 cursor-not-allowed' : 'opacity-100'} transition-opacity duration-300`}
+                      className={`flex-1 w-full p-4 md:p-5 resize-none overflow-y-auto border-0 focus:ring-0 focus:outline-none text-slate-700 leading-relaxed text-sm md:text-base font-normal placeholder:text-slate-400 bg-linear-to-b from-white to-slate-50/20 ${isFixingLogic ? 'opacity-50 cursor-not-allowed' : 'opacity-100'} transition-opacity duration-300`}
                       placeholder="Nhập hoặc bôi đen copy cuộc trò chuyện chứa công thức toán ($x^2$ hoặc $$y = mx+b$$) từ ChatGPT, Gemini rồi dán trực tiếp vào đây..."
                     />
 
@@ -4851,7 +4904,7 @@ ${bodyHtml}
                   </div>
 
                   {/* Right panel: Preview & Advanced Copy Area */}
-                  <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[500px] lg:h-[600px] flex-1">
+                  <div className="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden h-[500px] lg:h-[600px] w-full">
                     {/* Header with Switch output tabs */}
                     <div className="bg-gradient-to-r from-violet-100/60 via-sky-50/40 to-indigo-100/60 px-3 py-2 md:px-4 md:py-2.5 border-b border-indigo-200/40 flex flex-wrap justify-between items-center gap-2">
                       <div className="flex bg-slate-200/60 p-0.5 rounded-lg text-[11px] md:text-xs font-semibold gap-0.5">
